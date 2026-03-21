@@ -1,0 +1,13 @@
+*.fastq
+*.bam
+*.bai
+*.gz
+*.tar
+mytable_feaures
+resultAnnot.RData
+ens2entrez.RData
+*.png
+*.docx
+*.csv
+*.pdf
+mouse_H_v5p2.rdata
