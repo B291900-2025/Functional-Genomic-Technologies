@@ -270,6 +270,48 @@ head(result_treatment, 10)
 
 ---
 
+## Dispersion Plot and Cook's Distance Outlier Check
+```{r dispersion_cooks, echo=FALSE, fig.cap="Figure 5. Top: DESeq2 dispersion estimates. Black dots show raw per-gene dispersion estimates, the red line shows the fitted trend, and blue dots show final shrunken estimates used for testing. Bottom: Cook's distance per sample. Genes where one sample has a disproportionately extreme count are flagged as outliers and assigned NA for p-value."}
+# Dispersion plot - assesses how well DESeq2 modelled biological variability
+# This is an extension beyond class materials - dispersion modelling is key to
+# understanding why some genes receive NA p-values in low-count datasets
+# Reference: Love et al. 2014, Genome Biology
+
+plotDispEsts(dds_rnaseq,
+             main = "DESeq2 Dispersion Estimates — MTR4 cKO vs WT",
+             xlab = "Mean Normalised Counts",
+             ylab = "Dispersion")
+
+# Cook's distance - identifies influential outlier observations per gene
+# Genes where one sample has an extreme count relative to others get flagged
+# This explains the NA p-value for ENSMUSG00000057170 in our results
+# Reference: Cook 1977; implemented in DESeq2 via results()
+
+cooks <- assays(dds_rnaseq)[["cooks"]]
+
+boxplot(log10(cooks + 1e-10),
+        las = 2,
+        col = adf$Colours,
+        main = "Cook's Distance per Sample",
+        ylab = "log10(Cook's Distance)",
+        names = colnames(cooks))
+
+# Report genes flagged as outliers
+na_pval_genes <- rownames(result_treatment)[is.na(results(dds_rnaseq)$pvalue)]
+cat("Number of genes with NA p-value (Cook's distance outliers):",
+    length(na_pval_genes), "\n")
+cat("Top outlier gene(s):\n")
+print(na_pval_genes[1:min(5, length(na_pval_genes))])
+
+# Show Cook's distances for the top outlier gene
+if(length(na_pval_genes) > 0){
+  cat("\nCook's distances for top outlier gene", na_pval_genes[1], ":\n")
+  print(cooks[na_pval_genes[1], ])
+}
+```
+
+---
+
 ## Heatmaps of Top Differentially Expressed Genes
 
 ```{r differential_expression_heatmaps, echo=FALSE, fig.cap="Figure 5. Heatmaps of top differentially expressed genes. Top: top 50 genes by test statistic, row-scaled rlog values. Bottom: all significant genes (padj < 0.05)."}
