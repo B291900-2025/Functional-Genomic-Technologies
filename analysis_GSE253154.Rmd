@@ -426,6 +426,95 @@ pheatmap(assay(plotme), scale = "row", fontsize_row = 8,
 
 ---
 
+## Gene Biotype Analysis
+```{r biotype_analysis, echo=FALSE, fig.cap="Figure 8. Gene biotype analysis. Left: biotype composition of all detected genes. Right: biotype composition of top 200 DE genes ranked by |Wald statistic|. Enrichment of specific biotypes in the DE list relative to background connects to MTR4's role as a nuclear RNA surveillance factor regulating non-coding and retrotransposon RNAs."}
+# Gene biotype analysis - extension beyond class materials
+# MTR4 is known to regulate non-coding RNAs and retrotransposon RNAs
+# Checking whether DE genes are enriched for specific biotypes directly
+# connects the analysis to the paper's central biological claims
+# Reference: Zhang et al. 2025 Nat Commun
+# Git checkpoint: git commit -m "Gene biotype analysis complete"
+
+if(file.exists("resultAnnot_biotype.RData")){
+  load("resultAnnot_biotype.RData")
+  cat("Loaded cached biotype annotation...\n")
+} else {
+  ensembl_mirrors <- c(
+    "https://useast.ensembl.org",
+    "https://uswest.ensembl.org",
+    "https://asia.ensembl.org",
+    "https://www.ensembl.org"
+  )
+  mart_bio <- NULL
+  for(mirror in ensembl_mirrors){
+    tryCatch({
+      mart_bio <- biomaRt::useDataset(
+        dataset = "mmusculus_gene_ensembl",
+        mart = useMart("ENSEMBL_MART_ENSEMBL", host = mirror)
+      )
+      cat("Connected via:", mirror, "\n")
+      break
+    }, error = function(e) cat("Failed:", mirror, "\n"))
+  }
+  biotype_annot <- biomaRt::getBM(
+    values = rownames(dds_rnaseq),
+    attributes = c("ensembl_gene_id", "gene_biotype"),
+    filters = "ensembl_gene_id",
+    mart = mart_bio
+  )
+  save(biotype_annot, file = "resultAnnot_biotype.RData")
+  cat("Downloaded and saved biotype annotation...\n")
+}
+
+# Biotype of all detected genes (background)
+all_biotypes <- sort(table(biotype_annot$gene_biotype), decreasing = TRUE)
+top_biotypes <- names(all_biotypes)[1:10]
+
+# Collapse rare biotypes into "other"
+biotype_annot$biotype_collapsed <- ifelse(
+  biotype_annot$gene_biotype %in% top_biotypes,
+  biotype_annot$gene_biotype, "other"
+)
+
+# Biotype of top 200 DE genes
+top200_ids <- rownames(result_treatment)[1:200]
+top200_biotypes <- biotype_annot[biotype_annot$ensembl_gene_id %in% top200_ids, ]
+top200_biotypes$biotype_collapsed <- ifelse(
+  top200_biotypes$gene_biotype %in% top_biotypes,
+  top200_biotypes$gene_biotype, "other"
+)
+
+# Plot comparison
+par(mfrow = c(1, 2), mar = c(10, 4, 3, 1))
+
+all_collapsed <- sort(table(biotype_annot$biotype_collapsed), decreasing = TRUE)
+barplot(all_collapsed, las = 2, col = "steelblue",
+        main = "All Detected Genes",
+        ylab = "Number of genes", cex.names = 0.65)
+
+top200_collapsed <- sort(table(top200_biotypes$biotype_collapsed), decreasing = TRUE)
+barplot(top200_collapsed, las = 2, col = "coral",
+        main = "Top 200 DE Genes",
+        ylab = "Number of genes", cex.names = 0.65)
+
+par(mfrow = c(1, 1))
+
+# Percentage breakdown for report
+cat("\nBiotype breakdown — All detected genes (%):\n")
+print(round(100 * all_collapsed / sum(all_collapsed), 2))
+cat("\nBiotype breakdown — Top 200 DE genes (%):\n")
+print(round(100 * top200_collapsed / sum(top200_collapsed), 2))
+
+# Specifically check for retrotransposon-related genes in DE list
+retro_types <- c("LTR_retrotransposon", "LINE_element",
+                 "SINE_element", "retrotransposon")
+retro_in_top200 <- top200_biotypes[top200_biotypes$gene_biotype %in% retro_types, ]
+cat("\nRetrotransposon-related genes in top 200 DE genes:", nrow(retro_in_top200), "\n")
+if(nrow(retro_in_top200) > 0) print(retro_in_top200)
+```
+
+---
+
 ## Annotated Results Table — Top 10 Differentially Expressed Genes
 
 ```{r top10_table, echo=FALSE}
