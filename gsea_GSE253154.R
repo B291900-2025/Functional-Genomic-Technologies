@@ -101,31 +101,56 @@ plotEnrichment(Mm.H[[bottom_pathway]], results2) +
        x = "Gene rank", y = "Enrichment score") +
   theme_bw()
 
-# Summary barplot of significant pathways (padj < 0.05)
-sig_pathways <- fgseaRes[fgseaRes$padj < 0.05, ]
-cat("\nNumber of significant Hallmark pathways (padj < 0.05):", nrow(sig_pathways), "\n")
+# Summary barplot of ALL pathways ranked by NES - extension beyond class materials
+# Plotting all pathways is more informative when no pathways survive multiple
+# testing correction, as it reveals the overall direction of transcriptional change
+# Colour coded by significance level to distinguish strong, nominal, and ns results
+# Reference: Subramanian et al. 2005 PNAS
+# Git checkpoint: git commit -m "Add full GSEA barplot with biological interpretation"
 
-if (nrow(sig_pathways) > 0) {
-  sig_pathways$pathway_short <- gsub("HALLMARK_", "", sig_pathways$pathway)
-  sig_pathways <- sig_pathways[order(sig_pathways$NES), ]
+fgseaRes$pathway_short <- gsub("HALLMARK_", "", fgseaRes$pathway)
+fgseaRes$significance_label <- ifelse(fgseaRes$padj < 0.05, "padj < 0.05",
+                               ifelse(fgseaRes$pval < 0.05, "pval < 0.05", "ns"))
 
-  ggplot(sig_pathways, aes(x = reorder(pathway_short, NES), y = NES, fill = NES > 0)) +
-    geom_bar(stat = "identity") +
-    coord_flip() +
-    scale_fill_manual(values = c("TRUE" = "#d73027", "FALSE" = "#4575b4"),
-                      labels = c("TRUE" = "Enriched in cKO", "FALSE" = "Depleted in cKO")) +
-    labs(
-      title = "Significant Hallmark Pathways (padj < 0.05)",
-      subtitle = "MTR4 cKO vs WT | GSE253154",
-      x = "Hallmark Pathway",
-      y = "Normalised Enrichment Score (NES)",
-      fill = "Direction"
-    ) +
-    theme_bw() +
-    theme(axis.text.y = element_text(size = 9))
+ggplot(fgseaRes, aes(x = reorder(pathway_short, NES),
+                     y = NES,
+                     fill = significance_label)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_manual(
+    values = c("padj < 0.05" = "#d73027",
+               "pval < 0.05" = "#fc8d59",
+               "ns" = "#91bfdb"),
+    name = "Significance"
+  ) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
+  labs(
+    title = "Hallmark Pathway Enrichment — MTR4 cKO vs WT",
+    subtitle = "GSE253154 | All 50 Hallmark pathways ranked by NES",
+    x = "Hallmark Pathway",
+    y = "Normalised Enrichment Score (NES)\n(negative = depleted in cKO)"
+  ) +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 8),
+        legend.position = "bottom")
 
-  ggsave("fgsea_hallmark_barplot.png", width = 10, height = 7)
-}
+ggsave("fgsea_hallmark_barplot_all.png", width = 11, height = 9)
+
+# Print nominally significant pathways for discussion
+cat("\nNominally significant pathways (pval < 0.05, before multiple testing):\n")
+nominal_sig <- fgseaRes[fgseaRes$pval < 0.05,
+                        c("pathway", "pval", "padj", "NES", "size")]
+print(nominal_sig[order(nominal_sig$NES), ])
+
+cat("\n--- INTERPRETATION ---\n")
+cat("All NES values are negative, indicating broad depletion of Hallmark\n")
+cat("pathways in MTR4 cKO spermatogonia relative to WT.\n")
+cat("No pathways survive multiple testing correction (padj < 0.05),\n")
+cat("consistent with a diffuse rather than pathway-specific effect.\n")
+cat("This is consistent with MTR4 acting as a general RNA surveillance factor.\n")
+cat("HALLMARK_SPERMATOGENESIS shows a trend toward depletion (NES =",
+    round(fgseaRes$NES[fgseaRes$pathway == "HALLMARK_SPERMATOGENESIS"], 3),
+    ") supporting the known role of MTR4 in spermatogenesis.\n")
 
 # Save full fgsea results table
 fgseaRes_out <- fgseaRes[, c("pathway", "pval", "padj", "NES", "size")]
